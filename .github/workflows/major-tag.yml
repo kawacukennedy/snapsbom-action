@@ -1,0 +1,43 @@
+name: Move major version tag
+
+# Keeps `uses: kawacukennedy/snapsbom-action@v1` pointed at the latest
+# release in the v1 line, so consumers get patch fixes without editing
+# their workflows and without ever silently jumping to v2.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  move-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Move the major tag onto the release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_tag="${GITHUB_REF_NAME}"
+          case "${release_tag}" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *)
+              echo "::notice::'${release_tag}' is not a plain semver tag — nothing to move."
+              exit 0
+              ;;
+          esac
+          major="${release_tag%%.*}"
+
+          git fetch --force --tags
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -f "${major}" "refs/tags/${release_tag}"
+          git push --force origin "refs/tags/${major}"
+          echo "Moved '${major}' → '${release_tag}'"
