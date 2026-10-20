@@ -1,0 +1,105 @@
+name: 'SnapSBOM'
+description: 'Generate a deterministic, byte-for-byte reproducible SBOM (SPDX 2.3 / CycloneDX 1.6) from package-lock.json.'
+author: 'kawacukennedy'
+
+branding:
+  icon: 'package'
+  color: 'purple'
+
+inputs:
+  path:
+    description: 'Directory containing a package-lock.json, or a path to the lockfile itself.'
+    required: false
+    default: '.'
+  format:
+    description: "SBOM format to emit: 'spdx' (SPDX 2.3) or 'cyclonedx' (CycloneDX 1.6)."
+    required: false
+    default: 'spdx'
+  output:
+    description: 'File to write the SBOM to. Defaults to sbom.spdx.json / sbom.cdx.json in the workspace.'
+    required: false
+    default: ''
+  version:
+    description: 'SnapSBOM version to run. Pinned so a given ref always produces the same document.'
+    required: false
+    default: '0.2.1'
+
+outputs:
+  path:
+    description: 'Path of the generated SBOM file.'
+    value: ${{ steps.generate.outputs.path }}
+  sha256:
+    description: 'SHA-256 of the generated SBOM. Identical across runs and across operating systems for identical input.'
+    value: ${{ steps.generate.outputs.sha256 }}
+  components:
+    description: 'Number of components (CycloneDX) or packages (SPDX) in the generated SBOM.'
+    value: ${{ steps.generate.outputs.components }}
+  format:
+    description: 'Format that was generated: spdx or cyclonedx.'
+    value: ${{ steps.generate.outputs.format }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate SBOM
+      id: generate
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        case "${INPUT_FORMAT}" in
+          spdx|cyclonedx) ;;
+          *)
+            echo "::error::Invalid 'format' input '${INPUT_FORMAT}' — expected 'spdx' or 'cyclonedx'."
+            exit 1
+            ;;
+        esac
+
+        out="${INPUT_OUTPUT}"
+        if [ -z "${out}" ]; then
+          if [ "${INPUT_FORMAT}" = "cyclonedx" ]; then
+            out="sbom.cdx.json"
+          else
+            out="sbom.spdx.json"
+          fi
+        fi
+
+        npx --yes "snapsbom@${INPUT_VERSION}" "${INPUT_PATH}" --format "${INPUT_FORMAT}" --output "${out}"
+
+        if [ ! -f "${out}" ]; then
+          echo "::error::SnapSBOM reported success but '${out}' was not written."
+          exit 1
+        fi
+
+        digest="$(node -e 'const c=require("crypto"),f=require("fs");process.stdout.write(c.createHash("sha256").update(f.readFileSync(process.argv[1])).digest("hex"))' "${out}")"
+
+        components="$(node -e 'const f=require("fs");const d=JSON.parse(f.readFileSync(process.argv[1],"utf8"));const n=Array.isArray(d.components)?d.components.length:Array.isArray(d.packages)?d.packages.length:0;process.stdout.write(String(n))' "${out}")"
+
+        {
+          echo "path=${out}"
+          echo "sha256=${digest}"
+          echo "components=${components}"
+          echo "format=${INPUT_FORMAT}"
+        } >> "${GITHUB_OUTPUT}"
+
+        echo "SnapSBOM ${INPUT_VERSION} → ${INPUT_FORMAT}, ${components} components"
+        echo "  file    ${out}"
+        echo "  sha256  ${digest}"
+
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          {
+            echo "### SnapSBOM"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Format | \`${INPUT_FORMAT}\` |"
+            echo "| File | \`${out}\` |"
+            echo "| Components | ${components} |"
+            echo "| SHA-256 | \`${digest}\` |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+        fi
