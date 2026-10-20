@@ -30,7 +30,7 @@ It reads the lockfile directly — no source scan, no container, no build, no cl
 | `path` | Directory containing a `package-lock.json`, or a path to the lockfile itself. | `.` |
 | `format` | `spdx` (SPDX 2.3) or `cyclonedx` (CycloneDX 1.6). | `spdx` |
 | `output` | File to write the SBOM to. | `sbom.spdx.json` / `sbom.cdx.json` |
-| `version` | SnapSBOM version to run. Pinned so a given workflow ref stays reproducible. | `0.2.1` |
+| `version` | SnapSBOM version to run. Pinned so a given workflow ref stays reproducible. | `0.2.2` |
 
 Supported lockfiles: `package-lock.json` `lockfileVersion` 1, 2 and 3 (npm 5 through npm 11).
 
@@ -115,7 +115,7 @@ The repository's own CI runs this action **twice per operating system per format
 ```yaml
 - uses: kawacukennedy/snapsbom-action@v1
   with:
-    version: 0.2.1   # upgrade intentionally, not implicitly
+    version: 0.2.2   # upgrade intentionally, not implicitly
 ```
 
 ## License

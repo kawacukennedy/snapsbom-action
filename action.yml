@@ -22,7 +22,7 @@ inputs:
   version:
     description: 'SnapSBOM version to run. Pinned so a given ref always produces the same document.'
     required: false
-    default: '0.2.1'
+    default: '0.2.2'
 
 outputs:
   path:
